@@ -28,11 +28,15 @@ void material_info_init(MaterialInfo* info) {
     info->diffuse_path = NULL;
     info->normal_path = NULL;
     info->alpha_mode = ALPHA_MODE_OPAQUE;
+    info->uv_channel = 0;
+    info->embedded_diffuse = NULL;
+    info->embedded_diffuse_size = 0;
 }
 
 void material_info_free(MaterialInfo* info) {
     free(info->diffuse_path);
     free(info->normal_path);
+    free(info->embedded_diffuse);
     material_info_init(info);
 }
 
@@ -96,7 +100,8 @@ static inline void ai_quat_to_glm(const struct aiQuaternion* q, versor out) {
 }
 
 static void process_node(const struct aiNode* node, const struct aiScene* scene, mat4 parent_transform,
-                         VertexArray* vertices, Uint32Array* indices, bool* out_has_uvs) {
+                         VertexArray* vertices, Uint32Array* indices, bool* out_has_uvs, bool flip_uv_y,
+                         unsigned int uv_channel) {
     mat4 node_transform, combined;
     ai_matrix_to_glm(&node->mTransformation, node_transform);
     glm_mat4_mul(parent_transform, node_transform, combined);
@@ -105,7 +110,7 @@ static void process_node(const struct aiNode* node, const struct aiScene* scene,
         const struct aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
         uint32_t base_index = (uint32_t)vertices->count;
         
-        if (mesh->mTextureCoords[0]) {
+        if (mesh->mTextureCoords[uv_channel]) {
             *out_has_uvs = true;
         }
         
@@ -130,9 +135,9 @@ static void process_node(const struct aiNode* node, const struct aiScene* scene,
             glm_mat4_mulv(combined, pos, transformed);
             glm_vec3_copy(transformed, vertex.position);
             
-            if (mesh->mTextureCoords[0]) {
-                vertex.texcoord[0] = mesh->mTextureCoords[0][j].x;
-                vertex.texcoord[1] = 1.0f - mesh->mTextureCoords[0][j].y;
+            if (mesh->mTextureCoords[uv_channel]) {
+                vertex.texcoord[0] = mesh->mTextureCoords[uv_channel][j].x;
+                vertex.texcoord[1] = flip_uv_y ? (1.0f - mesh->mTextureCoords[uv_channel][j].y) : mesh->mTextureCoords[uv_channel][j].y;
             }
             
             if (mesh->mNormals) {
@@ -169,19 +174,20 @@ static void process_node(const struct aiNode* node, const struct aiScene* scene,
     }
     
     for (unsigned int i = 0; i < node->mNumChildren; i++) {
-        process_node(node->mChildren[i], scene, combined, vertices, indices, out_has_uvs);
+        process_node(node->mChildren[i], scene, combined, vertices, indices, out_has_uvs, flip_uv_y, uv_channel);
     }
 }
 
 // Process node for animated models (no transform baking)
 static void process_node_animated(const struct aiNode* node, const struct aiScene* scene,
                                   VertexArray* vertices, Uint32Array* indices,
-                                  bool* out_has_uvs, Skeleton* skeleton) {
+                                  bool* out_has_uvs, Skeleton* skeleton, bool flip_uv_y,
+                                  unsigned int uv_channel) {
     for (unsigned int i = 0; i < node->mNumMeshes; i++) {
         const struct aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
         uint32_t base_index = (uint32_t)vertices->count;
         
-        if (mesh->mTextureCoords[0]) {
+        if (mesh->mTextureCoords[uv_channel]) {
             *out_has_uvs = true;
         }
         
@@ -198,9 +204,9 @@ static void process_node_animated(const struct aiNode* node, const struct aiScen
             vertex.position[1] = mesh->mVertices[j].y;
             vertex.position[2] = mesh->mVertices[j].z;
             
-            if (mesh->mTextureCoords[0]) {
-                vertex.texcoord[0] = mesh->mTextureCoords[0][j].x;
-                vertex.texcoord[1] = 1.0f - mesh->mTextureCoords[0][j].y;
+            if (mesh->mTextureCoords[uv_channel]) {
+                vertex.texcoord[0] = mesh->mTextureCoords[uv_channel][j].x;
+                vertex.texcoord[1] = flip_uv_y ? (1.0f - mesh->mTextureCoords[uv_channel][j].y) : mesh->mTextureCoords[uv_channel][j].y;
             }
             
             if (mesh->mNormals) {
@@ -298,7 +304,7 @@ static void process_node_animated(const struct aiNode* node, const struct aiScen
     }
     
     for (unsigned int i = 0; i < node->mNumChildren; i++) {
-        process_node_animated(node->mChildren[i], scene, vertices, indices, out_has_uvs, skeleton);
+        process_node_animated(node->mChildren[i], scene, vertices, indices, out_has_uvs, skeleton, flip_uv_y, uv_channel);
     }
 }
 
@@ -555,6 +561,16 @@ bool load_model(const char* path, Mesh* mesh, bool* out_has_uvs, MaterialInfo* o
         return false;
     }
     
+    // GLTF/GLB uses Y=0 at top-left (matching Vulkan texture convention), so no flip needed.
+    // FBX and other formats use Y=0 at bottom-left, requiring a flip for correct Vulkan sampling.
+    bool flip_uv_y = true;
+    const char* ext = strrchr(path, '.');
+    if (ext) {
+        if (strcasecmp(ext, ".glb") == 0 || strcasecmp(ext, ".gltf") == 0) {
+            flip_uv_y = false;
+        }
+    }
+    
     // Check coordinate system metadata
     int up_axis = 1;  // Default Y-up
     int up_axis_sign = 1;
@@ -590,6 +606,25 @@ bool load_model(const char* path, Mesh* mesh, bool* out_has_uvs, MaterialInfo* o
     glm_mat4_copy(coordinate_conversion, mesh->coordinate_system_transform);
     material_info_init(out_material);
     
+    // Determine which UV channel the diffuse texture uses (pre-pass over materials).
+    // Some formats (e.g. GLTF) store tiling UVs in a higher-numbered channel.
+    unsigned int uv_channel = 0;
+    for (unsigned int i = 0; i < scene->mNumMaterials; i++) {
+        const struct aiMaterial* material = scene->mMaterials[i];
+        struct aiString str;
+        unsigned int queried_channel = 0;
+        if (aiGetMaterialTexture(material, aiTextureType_BASE_COLOR, 0, &str,
+                                 NULL, &queried_channel, NULL, NULL, NULL, NULL) == aiReturn_SUCCESS
+            || aiGetMaterialTexture(material, aiTextureType_DIFFUSE, 0, &str,
+                                    NULL, &queried_channel, NULL, NULL, NULL, NULL) == aiReturn_SUCCESS) {
+            if (queried_channel > 0) {
+                uv_channel = queried_channel;
+                break;
+            }
+        }
+    }
+    out_material->uv_channel = uv_channel;
+    
     // Check if model has animations
     mesh->has_animations = (scene->mNumAnimations > 0);
     
@@ -600,7 +635,7 @@ bool load_model(const char* path, Mesh* mesh, bool* out_has_uvs, MaterialInfo* o
         ARRAY_INIT(mesh->skeleton.bone_hierarchy);
         
         process_node_animated(scene->mRootNode, scene, &mesh->vertices, &mesh->indices,
-                             out_has_uvs, &mesh->skeleton);
+                             out_has_uvs, &mesh->skeleton, flip_uv_y, uv_channel);
         build_bone_hierarchy(scene->mRootNode, &mesh->skeleton, -1);
         load_animations(scene, &mesh->animations);
         
@@ -610,7 +645,7 @@ bool load_model(const char* path, Mesh* mesh, bool* out_has_uvs, MaterialInfo* o
     } else {
         mat4 identity;
         glm_mat4_identity(identity);
-        process_node(scene->mRootNode, scene, identity, &mesh->vertices, &mesh->indices, out_has_uvs);
+        process_node(scene->mRootNode, scene, identity, &mesh->vertices, &mesh->indices, out_has_uvs, flip_uv_y, uv_channel);
     }
     
     // Extract material info
@@ -646,6 +681,23 @@ bool load_model(const char* path, Mesh* mesh, bool* out_has_uvs, MaterialInfo* o
         
         if (out_material->diffuse_path && out_material->normal_path) {
             break;
+        }
+    }
+    
+    // If the diffuse texture is embedded, copy its bytes now while the scene is loaded
+    // so the texture loader doesn't need to re-parse the file.
+    if (out_material->diffuse_path && out_material->diffuse_path[0] == '*') {
+        int tex_index = atoi(out_material->diffuse_path + 1);
+        if (tex_index >= 0 && tex_index < (int)scene->mNumTextures) {
+            const struct aiTexture* embedded_tex = scene->mTextures[tex_index];
+            if (embedded_tex->mHeight == 0) {
+                // Compressed format (PNG/JPG etc.) — mWidth holds byte count
+                out_material->embedded_diffuse = malloc(embedded_tex->mWidth);
+                if (out_material->embedded_diffuse) {
+                    memcpy(out_material->embedded_diffuse, embedded_tex->pcData, embedded_tex->mWidth);
+                    out_material->embedded_diffuse_size = embedded_tex->mWidth;
+                }
+            }
         }
     }
     
