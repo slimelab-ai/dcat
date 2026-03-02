@@ -32,13 +32,14 @@ void termios_state_restore(TermiosState *state);
 
 void enable_raw_mode(void);
 void disable_raw_mode(void);
-void enter_alternate_screen(void);
-void exit_alternate_screen(void);
-void hide_cursor(void);
-void show_cursor(void);
-void enable_focus_tracking(void);
-void disable_focus_tracking(void);
-void enable_mouse_orbit_tracking(void);
-void disable_mouse_orbit_tracking(void);
+
+static inline void enter_alternate_screen(void) { safe_write("\x1b[?1049h", 8); }
+static inline void exit_alternate_screen(void) { safe_write("\x1b[?1049l", 8); }
+static inline void hide_cursor(void) { safe_write("\x1b[?25l", 6); }
+static inline void show_cursor(void) { safe_write("\x1b[?25h", 6); }
+static inline void enable_mouse_orbit_tracking(void) { safe_write("\x1b[?1002h\x1b[?1006h\x1b[?1016h", 24); }
+static inline void disable_mouse_orbit_tracking(void) { safe_write("\x1b[?1016l\x1b[?1002l\x1b[?1006l", 24); }
+static inline void enable_kitty_keyboard(void) { safe_write("\x1b[>11u", 6); }
+static inline void disable_kitty_keyboard(void) { safe_write("\x1b[<u", 4); }
 
 #endif // DCAT_TERMINAL_H

@@ -19,7 +19,6 @@
 #include "terminal/kitty_shm.h"
 #include "graphics/texture_loader.h"
 #include "renderer/vulkan_renderer.h"
-#include "input/input_device.h"
 #include "input/input_handler.h"
 
 // Global state for signal handlers
@@ -109,15 +108,8 @@ static void setup_camera_position(const CameraSetup* camera_setup, float model_s
     glm_vec3_add(camera_target, camera_offset, out_position);
 }
 
-static void process_input_devices(InputManager* input_manager, KeyState* key_state,
-                                   Camera* camera, float delta_time, float* move_speed,
-                                   bool is_focused) {
-    if (!input_manager || !is_focused) {
-        return;
-    }
-    
-    input_manager_process_events(input_manager, key_state);
-    
+static void process_input_devices(KeyState* key_state,
+                                   Camera* camera, float delta_time, float* move_speed) {
     if (key_state->q) {
         atomic_store(&g_running, false);
         return;
@@ -226,7 +218,6 @@ int main(int argc, char* argv[]) {
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
     signal(SIGWINCH, resize_handler);
-    enable_focus_tracking();
     
     uint32_t width, height;
     calculate_render_dimensions(args.width, args.height, args.use_sixel,
@@ -237,7 +228,6 @@ int main(int argc, char* argv[]) {
     VulkanRenderer* renderer = vulkan_renderer_create(width, height);
     if (!renderer || !vulkan_renderer_initialize(renderer)) {
         fprintf(stderr, "Failed to initialize Vulkan renderer\n");
-        disable_focus_tracking();
         return 1;
     }
     vulkan_renderer_set_light_direction(renderer, (vec3){0.0f, -1.0f, -0.5f});
@@ -251,7 +241,6 @@ int main(int argc, char* argv[]) {
     if (!load_model(args.model_path, &mesh, &has_uvs, &material_info)) {
         fprintf(stderr, "Failed to load model: %s\n", args.model_path);
         vulkan_renderer_destroy(renderer);
-        disable_focus_tracking();
         return 1;
     }
     
@@ -298,16 +287,11 @@ int main(int argc, char* argv[]) {
     double target_frame_time = 1.0 / args.target_fps;
     
     KeyState key_state = {0};
-    InputManager* input_manager = input_manager_create();
-    bool input_devices_ready = input_manager_initialize(input_manager, true);
-    
-    if (args.fps_controls && !input_devices_ready) {
-        fprintf(stderr, "Warning: Could not initialize input devices for FPS controls\n");
-    }
     
     hide_cursor();
     enter_alternate_screen();
     enable_raw_mode();
+    enable_kitty_keyboard();
     if (args.mouse_orbit) {
         enable_mouse_orbit_tracking();
     }
@@ -321,11 +305,11 @@ int main(int argc, char* argv[]) {
     pthread_mutex_t shared_state_mutex = PTHREAD_MUTEX_INITIALIZER;
     
     double last_frame_time = get_time_seconds();
-    atomic_bool is_focused = true;
-    
+
     InputThreadData input_data = {
-        &camera, renderer, &anim_state, &mesh, &shared_state_mutex, &is_focused, &g_running,
-        args.fps_controls, args.mouse_orbit, args.mouse_sensitivity, has_animations
+        &camera, renderer, &anim_state, &mesh, &shared_state_mutex, &g_running,
+        args.fps_controls, args.mouse_orbit, args.mouse_sensitivity, has_animations,
+        &key_state
     };
     pthread_t input_thread;
     pthread_create(&input_thread, NULL, input_thread_func, &input_data);
@@ -383,9 +367,9 @@ int main(int argc, char* argv[]) {
         }
 
         pthread_mutex_lock(&shared_state_mutex);
-        if (input_devices_ready && atomic_load(&is_focused) && args.fps_controls) {
-            process_input_devices(input_manager, &key_state, &camera, delta_time, 
-                                &move_speed, atomic_load(&is_focused));
+        if (args.fps_controls) {
+            process_input_devices(&key_state, &camera, delta_time,
+                                &move_speed);
         }
         camera_view_matrix(&camera, view);
         glm_vec3_copy(camera.position, camera_position_snapshot);
@@ -409,13 +393,13 @@ int main(int argc, char* argv[]) {
     vulkan_renderer_wait_idle(renderer);
     pthread_join(input_thread, NULL);
     
+    disable_kitty_keyboard();
     disable_raw_mode();
     exit_alternate_screen();
     show_cursor();
     if (args.mouse_orbit) {
         disable_mouse_orbit_tracking();
     }
-    disable_focus_tracking();
     pthread_mutex_destroy(&shared_state_mutex);
     
     free(bone_matrices);
@@ -427,7 +411,6 @@ int main(int argc, char* argv[]) {
     }
     mesh_free(&mesh);
     material_info_free(&material_info);
-    input_manager_destroy(input_manager);
     vulkan_renderer_destroy(renderer);
 
     vips_shutdown();

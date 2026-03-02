@@ -77,7 +77,6 @@ sources = files(
   'src/renderer/vk_pipeline.c',
   'src/renderer/vk_resources.c',
   'src/renderer/vk_upload.c',
-  'src/input/input_device.c',
   'src/input/input_handler.c',
   'src/terminal/terminal.c',
   'src/terminal/truecolor_characters.c',

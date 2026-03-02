@@ -138,21 +138,3 @@ void disable_raw_mode(void) {
   termios_state_restore(&raw_mode_state);
   raw_mode_enabled = false;
 }
-
-void enter_alternate_screen(void) { safe_write("\x1b[?1049h", 8); }
-
-void exit_alternate_screen(void) { safe_write("\x1b[?1049l", 8); }
-
-void hide_cursor(void) { safe_write("\x1b[?25l", 6); }
-
-void show_cursor(void) { safe_write("\x1b[?25h", 6); }
-
-void enable_focus_tracking(void) { safe_write("\x1b[?1004h", 8); }
-
-void disable_focus_tracking(void) { safe_write("\x1b[?1004l", 8); }
-
-// Enable button-event tracking + SGR mouse encoding + pixel coordinates for drag-to-orbit
-void enable_mouse_orbit_tracking(void) { safe_write("\x1b[?1002h\x1b[?1006h\x1b[?1016h", 24); }
-
-void disable_mouse_orbit_tracking(void) { safe_write("\x1b[?1016l\x1b[?1002l\x1b[?1006l", 24); }
-
