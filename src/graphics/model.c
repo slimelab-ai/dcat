@@ -75,20 +75,20 @@ void calculate_camera_setup(const VertexArray* vertices, CameraSetup* setup) {
 }
 
 // Convert assimp matrix to cglm matrix
-static void ai_matrix_to_glm(const struct aiMatrix4x4* from, mat4 to) {
+static inline void ai_matrix_to_glm(const struct aiMatrix4x4* from, mat4 to) {
     to[0][0] = from->a1; to[1][0] = from->a2; to[2][0] = from->a3; to[3][0] = from->a4;
     to[0][1] = from->b1; to[1][1] = from->b2; to[2][1] = from->b3; to[3][1] = from->b4;
     to[0][2] = from->c1; to[1][2] = from->c2; to[2][2] = from->c3; to[3][2] = from->c4;
     to[0][3] = from->d1; to[1][3] = from->d2; to[2][3] = from->d3; to[3][3] = from->d4;
 }
 
-static void ai_vector_to_glm(const struct aiVector3D* v, vec3 out) {
+static inline void ai_vector_to_glm(const struct aiVector3D* v, vec3 out) {
     out[0] = v->x;
     out[1] = v->y;
     out[2] = v->z;
 }
 
-static void ai_quat_to_glm(const struct aiQuaternion* q, versor out) {
+static inline void ai_quat_to_glm(const struct aiQuaternion* q, versor out) {
     out[0] = q->x;
     out[1] = q->y;
     out[2] = q->z;

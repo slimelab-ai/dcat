@@ -87,7 +87,7 @@ void bone_anim_map_insert(BoneAnimationMap* map, const char* name, int index) {
 
 // Binary search for the last key whose time <= the given time.
 // 'data' points to the first element of a key array; each element begins with float time.
-static int find_key_index(const void* data, size_t count, size_t stride, float time) {
+static inline int find_key_index(const void* data, size_t count, size_t stride, float time) {
     if (count == 0) return -1;
     if (count == 1 || time <= *(const float*)data) return 0;
     if (time >= *(const float*)((const char*)data + (count - 1) * stride)) return (int)count - 1;

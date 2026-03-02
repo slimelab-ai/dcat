@@ -11,7 +11,7 @@
 static const char base64_chars[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-static size_t base64_encode(const uint8_t *data, size_t len, char *out) {
+static inline size_t base64_encode(const uint8_t *data, size_t len, char *out) {
     char *p = out;
     for (size_t i = 0; i < len; i += 3) {
         uint32_t n = (uint32_t)data[i] << 16;
