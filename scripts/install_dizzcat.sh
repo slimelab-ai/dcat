@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_DIR="$REPO_DIR/build"
+BUILD_DIR="$REPO_DIR/build-release"
 BIN_DIR="$HOME/.local/bin"
 
 echo "[dizzcat] Installing system dependencies (needs sudo)..."
@@ -13,12 +13,18 @@ sudo apt-get install -y \
   glslang-tools
 
 echo "[dizzcat] Configuring build..."
-meson setup "$BUILD_DIR" "$REPO_DIR" --reconfigure
+meson setup "$BUILD_DIR" "$REPO_DIR" --buildtype=release --reconfigure
 meson compile -C "$BUILD_DIR"
 
 mkdir -p "$BIN_DIR"
-cp "$BUILD_DIR/dcat" "$BIN_DIR/dizzcat"
-chmod +x "$BIN_DIR/dizzcat"
+cp "$BUILD_DIR/dcat" "$BIN_DIR/dizzcat-bin"
+cat > "$BIN_DIR/dizzcat" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+BIN="$HOME/.local/bin/dizzcat-bin"
+exec "$BIN" "$@"
+EOF
+chmod +x "$BIN_DIR/dizzcat" "$BIN_DIR/dizzcat-bin"
 
 echo "[dizzcat] Installed as: $BIN_DIR/dizzcat"
 echo "[dizzcat] Run with: dizzcat /path/to/model.glb"
