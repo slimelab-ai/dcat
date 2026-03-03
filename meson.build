@@ -100,7 +100,13 @@ shader_input_files = files(
   'shaders/' + shader_sources[3],
 )
 
-glslc = find_program('glslc', required: true)
+glslc = find_program('glslc', required: false)
+glslang_validator = find_program('glslangValidator', required: false)
+
+if not glslc.found() and not glslang_validator.found()
+  error('Need either glslc or glslangValidator to compile shaders')
+endif
+
 shader_install_dir = join_paths(get_option('datadir'), 'dcat', 'shaders')
 shader_args = []
 if buildtype == 'debug'
@@ -111,11 +117,18 @@ foreach idx : range(0, shader_sources.length())
   shader_name = shader_sources[idx]
   shader_input = shader_input_files[idx]
 
+  shader_cmd = []
+  if glslc.found()
+    shader_cmd = [glslc] + shader_args + ['@INPUT@', '-o', '@OUTPUT@']
+  else
+    shader_cmd = [glslang_validator] + shader_args + ['-V', '@INPUT@', '-o', '@OUTPUT@']
+  endif
+
   custom_target(
     'compile_' + shader_name,
     input: shader_input,
     output: shader_name + '.spv',
-    command: [glslc] + shader_args + ['@INPUT@', '-o', '@OUTPUT@'],
+    command: shader_cmd,
     build_by_default: true,
     install: true,
     install_dir: shader_install_dir,

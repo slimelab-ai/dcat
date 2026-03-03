@@ -86,7 +86,7 @@ typedef struct Vertex {
     vec3 normal;
     vec3 tangent;
     vec3 bitangent;
-    ivec4 bone_ids;
+    int32_t bone_ids[4];
     vec4 bone_weights;
 } Vertex;
 
