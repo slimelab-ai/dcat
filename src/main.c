@@ -185,7 +185,10 @@ static void render_frame(const RenderContext* ctx, const AnimationContext* anim_
                 current_animation_index < (int)mesh->animations.count) {
                 anim_name = mesh->animations.data[current_animation_index].name;
             }
-            draw_status_bar(fps, move_speed, camera_position, anim_name);
+            const char* effect_name = vulkan_renderer_get_effect_name(ctx->renderer);
+            draw_status_bar_with_effects(fps, move_speed, camera_position, anim_name,
+                                         effect_name, ctx->renderer->effect_intensity,
+                                         ctx->renderer->effect_speed);
         }
     }
 }
@@ -358,6 +361,9 @@ int main(int argc, char* argv[]) {
         last_frame_time = frame_start;
         vec3 camera_position_snapshot;
         int current_animation_index_snapshot = -1;
+        
+        // Update effect time
+        vulkan_renderer_update_effect_time(renderer, delta_time);
         
         if (args.spin_speed != 0.0f && !args.fps_controls) {
             total_spin += args.spin_speed * delta_time;

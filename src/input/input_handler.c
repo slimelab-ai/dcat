@@ -13,6 +13,12 @@ static const float ZOOM_AMOUNT = 0.25f;
 #define KITTY_LEFT_CTRL    57442
 #define KITTY_RIGHT_CTRL   57448
 
+// Kitty key codes for special characters
+#define KITTY_LEFT_BRACKET   91   // [
+#define KITTY_RIGHT_BRACKET  93   // ]
+#define KITTY_MINUS          45   // -
+#define KITTY_EQUAL          61   // =
+
 static void handle_key(InputThreadData* data, int key_code,
                        int modifiers, int event_type) {
     (void)modifiers;
@@ -33,6 +39,10 @@ static void handle_key(InputThreadData* data, int key_code,
             case 'q':  data->key_state->q = pressed; break;
             case 'v':  data->key_state->v = pressed; break;
             case 'b':  data->key_state->b = pressed; break;
+            case KITTY_LEFT_BRACKET:  data->key_state->left_bracket = pressed; break;
+            case KITTY_RIGHT_BRACKET: data->key_state->right_bracket = pressed; break;
+            case KITTY_MINUS:         data->key_state->minus = pressed; break;
+            case KITTY_EQUAL:         data->key_state->equal = pressed; break;
             case KITTY_LEFT_SHIFT: case KITTY_RIGHT_SHIFT:
                 data->key_state->shift = pressed; break;
             case KITTY_LEFT_CTRL: case KITTY_RIGHT_CTRL:
@@ -52,6 +62,36 @@ static void handle_key(InputThreadData* data, int key_code,
     if (key_code == 'm') {
         bool current = vulkan_renderer_get_wireframe_mode(data->renderer);
         vulkan_renderer_set_wireframe_mode(data->renderer, !current);
+    }
+    
+    // Effect controls
+    // [ and ] cycle effects
+    // - and = adjust intensity
+    // Shift+- and Shift+= adjust speed
+    if (key_code == KITTY_LEFT_BRACKET) {
+        EffectMode current = vulkan_renderer_get_effect_mode(data->renderer);
+        vulkan_renderer_set_effect_mode(data->renderer, 
+            (EffectMode)((current + EFFECT_COUNT - 1) % EFFECT_COUNT));
+    }
+    if (key_code == KITTY_RIGHT_BRACKET) {
+        vulkan_renderer_next_effect(data->renderer);
+    }
+    if (key_code == KITTY_MINUS && !data->key_state->shift) {
+        float intensity = data->renderer->effect_intensity - 0.1f;
+        vulkan_renderer_set_effect_intensity(data->renderer, intensity);
+    }
+    if (key_code == KITTY_EQUAL && !data->key_state->shift) {
+        float intensity = data->renderer->effect_intensity + 0.1f;
+        vulkan_renderer_set_effect_intensity(data->renderer, intensity);
+    }
+    // Shift + -/+ for speed adjustment (check modifier bit 1 for shift)
+    if (key_code == KITTY_MINUS && (modifiers & 2)) {
+        float speed = data->renderer->effect_speed - 0.2f;
+        vulkan_renderer_set_effect_speed(data->renderer, speed);
+    }
+    if (key_code == KITTY_EQUAL && (modifiers & 2)) {
+        float speed = data->renderer->effect_speed + 0.2f;
+        vulkan_renderer_set_effect_speed(data->renderer, speed);
     }
 
     // Orbit camera controls

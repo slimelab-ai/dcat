@@ -19,6 +19,9 @@ void calculate_render_dimensions(int explicit_width, int explicit_height,
 void safe_write(const char *data, size_t size);
 
 void draw_status_bar(float fps, float speed, const float* pos, const char* animation_name);
+void draw_status_bar_with_effects(float fps, float speed, const float* pos, 
+                                   const char* animation_name, const char* effect_name,
+                                   float effect_intensity, float effect_speed);
 
 typedef struct {
     int fd;

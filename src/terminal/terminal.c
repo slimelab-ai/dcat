@@ -102,6 +102,36 @@ void draw_status_bar(float fps, float speed, const float *pos,
   }
 }
 
+void draw_status_bar_with_effects(float fps, float speed, const float *pos,
+                                   const char *animation_name, const char *effect_name,
+                                   float effect_intensity, float effect_speed) {
+  uint32_t cols, rows;
+  get_terminal_size(&cols, &rows);
+  if (rows == 0)
+    return;
+
+  char buffer[768];
+  char anim_part[128] = "";
+  char effect_part[256] = "";
+  
+  if (animation_name && animation_name[0]) {
+    snprintf(anim_part, sizeof(anim_part), " | ANIM: %s", animation_name);
+  }
+  
+  if (effect_name && effect_name[0]) {
+    snprintf(effect_part, sizeof(effect_part), " | EFFECT: %s (I:%.1f S:%.1f)", 
+             effect_name, effect_intensity, effect_speed);
+  }
+
+  int len = snprintf(buffer, sizeof(buffer),
+                     "\x1b[?2026h\x1b[%u;1H\x1b[2K\x1b[7m FPS: %.1f | SPEED: "
+                     "%.2f | POS: %.2f, %.2f, %.2f%s%s \x1b[0m\x1b[H\x1b[?2026l",
+                     rows, fps, speed, pos[0], pos[1], pos[2], anim_part, effect_part);
+  if (len > 0) {
+    safe_write(buffer, (size_t)len);
+  }
+}
+
 bool termios_state_init(TermiosState *state, int fd) {
   state->fd = fd;
   if (tcgetattr(fd, &state->saved) == -1)

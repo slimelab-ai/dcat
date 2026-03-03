@@ -19,6 +19,10 @@ typedef struct KeyState {
     bool q;
     bool m;
     bool v, b;
+    bool left_bracket;   // [
+    bool right_bracket;  // ]
+    bool minus;          // -
+    bool equal;          // =
     int mouse_dx;
     int mouse_dy;
 } KeyState;

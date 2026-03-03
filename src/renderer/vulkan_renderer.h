@@ -14,10 +14,27 @@
 #define MAX_FRAMES_IN_FLIGHT 3
 #define NUM_STAGING_BUFFERS (MAX_FRAMES_IN_FLIGHT + 1)
 
+// Effect modes - must match shader defines
+typedef enum {
+    EFFECT_NONE = 0,
+    EFFECT_WAVE,
+    EFFECT_GLITCH,
+    EFFECT_HOLOGRAPHIC,
+    EFFECT_PULSE,
+    EFFECT_VORTEX,
+    EFFECT_BREATH,
+    EFFECT_JELLO,
+    EFFECT_COUNT
+} EffectMode;
+
 // Push constants for vertex shader
 typedef struct PushConstants {
     mat4 mvp;
     mat4 model;
+    float time;
+    uint32_t effect_mode;
+    float effect_intensity;
+    float effect_speed;
 } PushConstants;
 
 // Uniform buffer for vertex shader
@@ -38,7 +55,10 @@ typedef struct FragmentUniforms {
     uint32_t use_triplanar_mapping;
     uint32_t alpha_mode;
     float alpha_cutoff;
-    float padding;
+    uint32_t effect_mode;
+    float time;
+    float effect_intensity;
+    float effect_speed;
 } FragmentUniforms;
 
 // Memory allocation helper
@@ -156,6 +176,12 @@ typedef struct VulkanRenderer {
 
     char shader_directory[256];
     uint32_t current_frame;
+    
+    // Procedural effects
+    EffectMode effect_mode;
+    float effect_intensity;
+    float effect_speed;
+    float effect_time;
 } VulkanRenderer;
 
 // Create/destroy
@@ -195,6 +221,15 @@ const uint8_t* vulkan_renderer_render(
 
 // Set skydome
 void vulkan_renderer_set_skydome(VulkanRenderer* r, const Mesh* mesh, const Texture* texture);
+
+// Effect controls
+void vulkan_renderer_set_effect_mode(VulkanRenderer* r, EffectMode mode);
+EffectMode vulkan_renderer_get_effect_mode(const VulkanRenderer* r);
+void vulkan_renderer_next_effect(VulkanRenderer* r);
+void vulkan_renderer_set_effect_intensity(VulkanRenderer* r, float intensity);
+void vulkan_renderer_set_effect_speed(VulkanRenderer* r, float speed);
+void vulkan_renderer_update_effect_time(VulkanRenderer* r, float delta_time);
+const char* vulkan_renderer_get_effect_name(const VulkanRenderer* r);
 
 // Wait for idle
 void vulkan_renderer_wait_idle(VulkanRenderer* r);

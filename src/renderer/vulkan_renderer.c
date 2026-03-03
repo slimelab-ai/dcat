@@ -15,6 +15,12 @@ VulkanRenderer* vulkan_renderer_create(uint32_t width, uint32_t height) {
     r->height = height;
     glm_vec3_normalize_to((vec3){0.0f, -1.0f, -0.5f}, r->normalized_light_dir);
     
+    // Initialize effect defaults
+    r->effect_mode = EFFECT_NONE;
+    r->effect_intensity = 1.0f;
+    r->effect_speed = 1.0f;
+    r->effect_time = 0.0f;
+    
     return r;
 }
 
@@ -194,6 +200,10 @@ const uint8_t* vulkan_renderer_render(
     PushConstants push_constants;
     glm_mat4_copy((float(*)[4])mvp, push_constants.mvp);
     glm_mat4_copy((float(*)[4])model, push_constants.model);
+    push_constants.time = r->effect_time;
+    push_constants.effect_mode = (uint32_t)r->effect_mode;
+    push_constants.effect_intensity = r->effect_intensity;
+    push_constants.effect_speed = r->effect_speed;
     
     // Prepare uniform buffer
     Uniforms uniforms = {0};
@@ -223,6 +233,10 @@ const uint8_t* vulkan_renderer_render(
     frag_uniforms.fog_end = 10.0f;
     frag_uniforms.use_triplanar_mapping = use_triplanar_mapping ? 1 : 0;
     frag_uniforms.alpha_cutoff = 0.5f;
+    frag_uniforms.effect_mode = (uint32_t)r->effect_mode;
+    frag_uniforms.time = r->effect_time;
+    frag_uniforms.effect_intensity = r->effect_intensity;
+    frag_uniforms.effect_speed = r->effect_speed;
     
     switch (alpha_mode) {
         case ALPHA_MODE_MASK: frag_uniforms.alpha_mode = 1; break;
@@ -323,4 +337,44 @@ const uint8_t* vulkan_renderer_render(
     r->current_frame = (r->current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
     
     return result;
+}
+
+// Effect control functions
+void vulkan_renderer_set_effect_mode(VulkanRenderer* r, EffectMode mode) {
+    if (mode >= EFFECT_COUNT) mode = EFFECT_NONE;
+    r->effect_mode = mode;
+}
+
+EffectMode vulkan_renderer_get_effect_mode(const VulkanRenderer* r) {
+    return r->effect_mode;
+}
+
+void vulkan_renderer_next_effect(VulkanRenderer* r) {
+    r->effect_mode = (EffectMode)((r->effect_mode + 1) % EFFECT_COUNT);
+}
+
+void vulkan_renderer_set_effect_intensity(VulkanRenderer* r, float intensity) {
+    r->effect_intensity = intensity < 0.0f ? 0.0f : (intensity > 2.0f ? 2.0f : intensity);
+}
+
+void vulkan_renderer_set_effect_speed(VulkanRenderer* r, float speed) {
+    r->effect_speed = speed < 0.1f ? 0.1f : (speed > 5.0f ? 5.0f : speed);
+}
+
+void vulkan_renderer_update_effect_time(VulkanRenderer* r, float delta_time) {
+    r->effect_time += delta_time;
+}
+
+const char* vulkan_renderer_get_effect_name(const VulkanRenderer* r) {
+    static const char* effect_names[] = {
+        "None",
+        "Wave",
+        "Glitch",
+        "Holographic",
+        "Pulse",
+        "Vortex",
+        "Breath",
+        "Jello"
+    };
+    return effect_names[r->effect_mode];
 }
