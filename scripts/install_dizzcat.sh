@@ -17,8 +17,8 @@ meson setup "$BUILD_DIR" "$REPO_DIR" --reconfigure
 meson compile -C "$BUILD_DIR"
 
 mkdir -p "$BIN_DIR"
-cp "$BUILD_DIR/dcat" "$BIN_DIR/dongcat"
-chmod +x "$BIN_DIR/dongcat"
+cp "$BUILD_DIR/dcat" "$BIN_DIR/dizzcat"
+chmod +x "$BIN_DIR/dizzcat"
 
-echo "[dongcat] Installed as: $BIN_DIR/dongcat"
-echo "[dongcat] Run with: dongcat /path/to/model.glb"
+echo "[dizzcat] Installed as: $BIN_DIR/dizzcat"
+echo "[dizzcat] Run with: dizzcat /path/to/model.glb"
