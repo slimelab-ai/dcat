@@ -16,8 +16,9 @@ echo "[dizzcat] Configuring build..."
 meson setup "$BUILD_DIR" "$REPO_DIR" --buildtype=release --reconfigure
 meson compile -C "$BUILD_DIR"
 
-mkdir -p "$BIN_DIR"
+mkdir -p "$BIN_DIR" "$BIN_DIR/shaders"
 cp "$BUILD_DIR/dcat" "$BIN_DIR/dizzcat-bin"
+cp "$BUILD_DIR"/*.spv "$BIN_DIR/shaders/"
 cat > "$BIN_DIR/dizzcat" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
